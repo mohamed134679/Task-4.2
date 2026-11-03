@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
 const KEY = 'acl-marketplace-v3';
+const ACCOUNT_KEY = 'acl-marketplace-account';
 const categories = ['all', 'textbooks', 'electronics', 'furniture', 'clothing', 'other'];
 const conditions = ['new', 'like-new', 'used', 'worn'];
 const currentUser = {name: 'You', email: 'you@example.com'}; // Demo account; no login backend
@@ -16,7 +17,15 @@ const seed = [
   {id:'m8', title:'Sketching kit', category:'other', condition:'like-new', price:180, description:'Charcoal pencils, graphite pencils, blending tools and an A5 sketch pad. Some pencils have been lightly used, but the set still has plenty of material for design practice and drawing assignments.', status:'active', owner:'other', seller:'Salma', sellerEmail:'salma.seller@example.com', pickup:'Meet outside the GUC architecture studios', photos:[photo('photo-1758521232691-613561977b6a'),photo('photo-1771366629879-8b3128ee62ca')], emoji:'🎨'},
 ];
 const emptyForm = {title:'', price:'', category:'', condition:'', description:'', pickup:'', status:'active'};
+const defaultAccount = {name:currentUser.name, email:currentUser.email, phone:'', campus:'GUC', signedIn:true};
 function saved(){try {const value=JSON.parse(localStorage.getItem(KEY));return Array.isArray(value)?value:seed;}catch{return seed;}}
+function savedAccount(){try {const value=JSON.parse(localStorage.getItem(ACCOUNT_KEY));return value&&typeof value==='object'?{...defaultAccount,...value}:defaultAccount;}catch{return defaultAccount;}}
+const accountFields = a => ({name:a.name, email:a.email, phone:a.phone, campus:a.campus});
+function findAccountError(form){
+ if(!form.name.trim())return 'Please enter your name.';
+ if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()))return 'Enter a valid email address.';
+ return '';
+}
 const cap = s => s==='like-new'?'Like new':(s||'').replace(/\b\w/g,m=>m.toUpperCase());
 function findError(form){
  if(!form.title.trim())return 'Please complete the item title.';
@@ -43,23 +52,91 @@ export default function App(){
  const [error,setError] = useState('');
  const [activePhoto,setActivePhoto] = useState(0);
  const [notice,setNotice] = useState('');
+ const [view,setView] = useState('market'); // 'market', 'account' or 'listings'
+ const [account,setAccount] = useState(savedAccount);
+ const [accountForm,setAccountForm] = useState(()=>accountFields(savedAccount()));
+ const [accountError,setAccountError] = useState('');
+ const [accountNotice,setAccountNotice] = useState('');
+ const [status,setStatus] = useState('all');
+ const [condition,setCondition] = useState('all');
+ const [myStatus,setMyStatus] = useState('all');
+ const [myCondition,setMyCondition] = useState('all');
+ const [confirmDelete,setConfirmDelete] = useState(null); // id of the item awaiting delete confirmation
  useEffect(()=>localStorage.setItem(KEY,JSON.stringify(items)),[items]);
- useEffect(()=>setActivePhoto(0),[selected]);
- const listing = useMemo(()=>{let a=items.filter(x=>(category==='all'||x.category===category)&&`${x.title} ${x.category} ${x.description}`.toLowerCase().includes(query.toLowerCase()));if(sort==='low')a.sort((a,b)=>a.price-b.price);if(sort==='high')a.sort((a,b)=>b.price-a.price);return a;},[items,category,query,sort]);
- function startEdit(item){if(item&&item.owner!=='you')return;setError('');setEditor({id:item?.id||null,form:item?{title:item.title,price:String(item.price),category:item.category,condition:item.condition,description:item.description,pickup:item.pickup || '',status:item.status}:{...emptyForm}});}
- function submit(event){event.preventDefault();const f=editor.form;const err=findError(f);if(err){setError('Unable to save item. Check the form.');return;}const original=editor.id?items.find(x=>x.id===editor.id):null;const next={...f, title:f.title.trim(),price:Number(f.price),description:f.description.trim(),pickup:f.pickup.trim(),photos:original?.photos || [],emoji:original?.emoji || '📦',owner:'you',seller:currentUser.name,sellerEmail:currentUser.email};
+ useEffect(()=>{try{localStorage.setItem(ACCOUNT_KEY,JSON.stringify(account));}catch{}},[account]);
+ const initial = (account.name.trim()[0] || 'Y').toUpperCase();
+ const mine = items.filter(x=>x.owner==='you');
+ function goMarket(nextCategory){setView('market');if(nextCategory)setCategory(nextCategory);}
+ function openAccount(){setView('account');setAccountForm(accountFields(account));setAccountError('');setAccountNotice('');window.scrollTo(0,0);}
+ function openListings(){if(!account.signedIn){openAccount();return;}setView('listings');window.scrollTo(0,0);}
+ const productCard = item=><article className="product" key={item.id}><button className="photo" onClick={()=>setSelected(item.id)}><span className="stamp">{cap(item.condition)}</span><ListingImage src={item.photos?.[0]} alt={item.title} emoji={item.emoji} className="listing-img" /><span className="category-caption">{cap(item.category)}</span></button><div className="prod-details"><div className="prod-topline"><span className="muted">{item.category}</span><span className={item.status==='sold'?'soldstatus':'instock'}>{item.status.toUpperCase()}</span></div><h3>{item.title}</h3><p>{item.description}</p><div className="costline"><strong>EGP {item.price.toLocaleString()}</strong><span>{item.condition}</span></div><button className="details-button" onClick={()=>setSelected(item.id)}>View item <span>↗</span></button></div></article>;
+ function updateAccountField(field,value){setAccountNotice('');setAccountForm(f=>({...f,[field]:value}));}
+ function saveAccount(event){event.preventDefault();const err=findAccountError(accountForm);if(err){setAccountError(err);return;}const f={name:accountForm.name.trim(),email:accountForm.email.trim(),phone:accountForm.phone.trim(),campus:accountForm.campus.trim()};setAccountError('');setAccount(a=>({...a,...f}));setAccountForm(f);setItems(list=>list.map(x=>x.owner==='you'?{...x,seller:f.name,sellerEmail:f.email}:x));setAccountNotice('Account details saved.');}
+ function logout(){setAccount(a=>({...a,signedIn:false}));setEditor(null);setSelected(null);setAccountNotice('');setView('account');}
+ function signIn(){setAccount(a=>({...a,signedIn:true}));setAccountForm(accountFields(account));}
+ useEffect(()=>{setActivePhoto(0);setConfirmDelete(null);},[selected]);
+ const matches = (x,st,cond) => (st==='all'||x.status===st)&&(cond==='all'||x.condition===cond);
+ const listing = useMemo(()=>{let a=items.filter(x=>(category==='all'||x.category===category)&&matches(x,status,condition)&&`${x.title} ${x.category} ${x.description}`.toLowerCase().includes(query.toLowerCase()));if(sort==='low')a.sort((a,b)=>a.price-b.price);if(sort==='high')a.sort((a,b)=>b.price-a.price);return a;},[items,category,query,sort,status,condition]);
+ const myListing = mine.filter(x=>matches(x,myStatus,myCondition));
+ const filterControls = (st,setSt,cond,setCond) => <><label className="sort"><span>Status</span><select aria-label="Filter by status" value={st} onChange={e=>setSt(e.target.value)}><option value="all">All</option><option value="active">Active</option><option value="sold">Sold</option></select></label><label className="sort"><span>Condition</span><select aria-label="Filter by condition" value={cond} onChange={e=>setCond(e.target.value)}><option value="all">Any</option>{conditions.map(c=><option value={c} key={c}>{cap(c)}</option>)}</select></label></>;
+ function deleteItem(id){const item=items.find(x=>x.id===id);if(!item||item.owner!=='you'||!account.signedIn)return;setItems(items.filter(x=>x.id!==id));setSelected(null);setEditor(null);setConfirmDelete(null);setNotice(`"${item.title}" was deleted.`);}
+ function startEdit(item){if(!account.signedIn){setSelected(null);openAccount();return;}if(item&&item.owner!=='you')return;setError('');setEditor({id:item?.id||null,form:item?{title:item.title,price:String(item.price),category:item.category,condition:item.condition,description:item.description,pickup:item.pickup || '',status:item.status}:{...emptyForm}});}
+ function submit(event){event.preventDefault();const f=editor.form;const err=findError(f);if(err){setError('Unable to save item. Check the form.');return;}const original=editor.id?items.find(x=>x.id===editor.id):null;const next={...f, title:f.title.trim(),price:Number(f.price),description:f.description.trim(),pickup:f.pickup.trim(),photos:original?.photos || [],emoji:original?.emoji || '📦',owner:'you',seller:account.name,sellerEmail:account.email};
  if(editor.id){setItems(items.map(x=>x.id===editor.id?{...x,...next}:x));setNotice('Changes saved.');}else{setItems([{...next,id:`m-${Date.now()}`,status:'active'},...items]);setNotice('Item listed.');}setEditor(null);setSelected(null);}
- function reset(){setItems(seed);setSelected(null);setEditor(null);setQuery('');setCategory('all');setSort('featured');setNotice('Example items restored.');}
+ function reset(){setItems(seed);setSelected(null);setEditor(null);setQuery('');setCategory('all');setSort('featured');setStatus('all');setCondition('all');setMyStatus('all');setMyCondition('all');setNotice('Example items restored.');}
  return <div className="market-app">
   <div className="utility"><span>Campus Exchange</span><span>Trusted by students • All prices in EGP</span></div>
-  <header className="navigation"><button className="brand" onClick={()=>{setSelected(null);setCategory('all')}}><span className="brand-icon">✳</span> CAMPUS<span className="brand-alt">exchange</span></button><nav><a href="#discover">Browse items</a><button onClick={()=>setCategory('textbooks')}>Textbooks</button><button onClick={()=>setCategory('electronics')}>Electronics</button></nav><div className="nav-actions"><span className="usercircle">Y</span><button className="sell-cta" onClick={()=>startEdit(null)}>+ Sell an item</button></div></header>
+  <header className="navigation"><button className="brand" onClick={()=>{setSelected(null);goMarket('all')}}><span className="brand-icon">✳</span> CAMPUS<span className="brand-alt">exchange</span></button><nav><a href="#discover" onClick={()=>goMarket()}>Browse items</a><button className={view==='listings'?'on':''} aria-current={view==='listings'?'page':undefined} onClick={openListings}>My listings</button></nav><div className="nav-actions">{account.signedIn
+    ? <button className={view==='account'?'usercircle on':'usercircle'} aria-label="Your account" title="Your account" aria-current={view==='account'?'page':undefined} onClick={openAccount}>{initial}</button>
+    : <button className="signin-link" onClick={openAccount}>Sign in</button>}<button className="sell-cta" onClick={()=>startEdit(null)}>+ Sell an item</button></div></header>
   <main>
+   {view==='listings'&&account.signedIn?<section className="account-page" aria-label="My listings">
+    <button className="back-link" onClick={()=>goMarket()}>← Back to listings</button>
+    <div className="discover-top"><div><p className="section-kicker">MY LISTINGS</p><h2>Items you're selling.</h2><p>{mine.filter(x=>x.status==='active').length} active · {mine.filter(x=>x.status==='sold').length} sold</p></div><button className="sell-cta" onClick={()=>startEdit(null)}>+ Sell an item</button></div>
+    {notice&&<p className="notice" role="status">{notice} <button onClick={()=>setNotice('')}>×</button></p>}
+    <div className="filter-row">{filterControls(myStatus,setMyStatus,myCondition,setMyCondition)}</div>
+    {mine.length===0?<p className="noresults">You haven't listed anything yet.</p>:myListing.length===0?<p className="noresults">None of your listings match these filters.</p>:<div className="listing-grid my-listings">{myListing.map(productCard)}</div>}
+   </section>:view==='account'||view==='listings'?<section className="account-page" aria-label="Your account">
+    <button className="back-link" onClick={()=>goMarket()}>← Back to listings</button>
+    <p className="section-kicker">YOUR ACCOUNT</p>
+    <h2>{account.signedIn?`Hi, ${account.name}.`:'You are signed out.'}</h2>
+    <p className="account-sub">{account.signedIn?'Manage your account details.':'Sign in to sell items, edit your listings and manage your account.'}</p>
+    {account.signedIn?<div className="account-layout">
+     <aside className="account-card">
+      <span className="avatar-lg" aria-hidden="true">{initial}</span>
+      <h3>{account.name}</h3>
+      <p>{account.email}</p>
+      {account.campus&&<p className="muted">{account.campus}</p>}
+      <button className="logout-button" onClick={logout}>Log out</button>
+     </aside>
+     <div className="account-main">
+      <form className="account-panel" onSubmit={saveAccount} noValidate>
+       <h3>Account details</h3>
+       <p className="account-hint">Your name and email appear on your listings so buyers can contact you.</p>
+       <div className="field-grid">
+        <label><span>Full name *</span><input value={accountForm.name} onChange={e=>updateAccountField('name',e.target.value)} autoComplete="name"/></label>
+        <label><span>Email *</span><input type="email" value={accountForm.email} onChange={e=>updateAccountField('email',e.target.value)} autoComplete="email"/></label>
+        <label><span>Phone</span><input type="tel" value={accountForm.phone} onChange={e=>updateAccountField('phone',e.target.value)} placeholder="Optional" autoComplete="tel"/></label>
+        <label><span>Campus</span><input value={accountForm.campus} onChange={e=>updateAccountField('campus',e.target.value)} placeholder="e.g. GUC"/></label>
+       </div>
+       {accountError&&<p className="alert" role="alert">{accountError}</p>}
+       {accountNotice&&<p className="notice" role="status">{accountNotice}</p>}
+       <div className="modal-foot"><button type="button" onClick={()=>{setAccountForm(accountFields(account));setAccountError('');setAccountNotice('');}}>Discard changes</button><button className="sell-cta" type="submit">Save changes</button></div>
+      </form>
+     </div>
+    </div>:<div className="account-card signed-out">
+     <span className="avatar-lg" aria-hidden="true">?</span>
+     <p>Welcome back. Sign in to continue as <strong>{account.email}</strong>.</p>
+     <button className="sell-cta" onClick={signIn}>Sign in</button>
+     <button className="back-link" onClick={()=>goMarket()}>Keep browsing</button>
+    </div>}
+   </section>:<>
    <section className="promo"><div className="promo-copy"><span className="tag">THE CAMPUS MARKETPLACE</span><h1>Everything you need,<br/><i>right around campus.</i></h1><p>Browse little finds, big essentials and almost everything in between.</p><button onClick={()=>document.getElementById('discover')?.scrollIntoView({behavior:'smooth'})}>Explore listings <span>↗</span></button></div><div className="promo-art"><span>📚</span><span>💡</span><span>🎧</span><span>🛋️</span></div></section>
    <section className="discovery" id="discover"><div className="discover-top"><div><p className="section-kicker">CURATED FOR YOUR CAMPUS</p><h2>Find something good.</h2><p>Items listed by people around you.</p></div><div className="discover-right"><label className="search"><span>⌕</span><input aria-label="Search listings" placeholder="Search listings" value={query} onChange={e=>setQuery(e.target.value)}/></label><label className="sort"><span>Sort</span><select value={sort} onChange={e=>setSort(e.target.value)}><option value="featured">Featured</option><option value="low">Price: low to high</option><option value="high">Price: high to low</option></select></label></div></div>
-    <div className="category-row">{categories.map(c=><button key={c} onClick={()=>setCategory(c)} className={category===c?'on':''}>{c==='all'?'All items':cap(c)}</button>)}</div>
+    <div className="filter-bar"><div className="category-row">{categories.map(c=><button key={c} onClick={()=>setCategory(c)} className={category===c?'on':''}>{c==='all'?'All items':cap(c)}</button>)}</div><div className="filter-selects">{filterControls(status,setStatus,condition,setCondition)}</div></div>
     {notice&&<p className="notice" role="status">{notice} <button onClick={()=>setNotice('')}>×</button></p>}
-    <div className="listing-grid">{listing.map(item=><article className="product" key={item.id}><button className="photo" onClick={()=>setSelected(item.id)}><span className="stamp">{cap(item.condition)}</span><ListingImage src={item.photos?.[0]} alt={item.title} emoji={item.emoji} className="listing-img" /><span className="category-caption">{cap(item.category)}</span></button><div className="prod-details"><div className="prod-topline"><span className="muted">{item.category}</span><span className={item.status==='sold'?'soldstatus':'instock'}>{item.status.toUpperCase()}</span></div><h3>{item.title}</h3><p>{item.description}</p><div className="costline"><strong>EGP {item.price.toLocaleString()}</strong><span>{item.condition}</span></div><button className="details-button" onClick={()=>setSelected(item.id)}>View item <span>↗</span></button></div></article>)}{listing.length===0&&<p className="noresults">No listings match your search.</p>}</div>
-   </section>
+    <div className="listing-grid">{listing.map(productCard)}{listing.length===0&&<p className="noresults">No listings match your search.</p>}</div>
+   </section></>}
    <footer><strong>CAMPUS exchange</strong><span>From students, for students.</span><button onClick={reset}>Reset demo</button></footer>
   </main>
   {selected&&(()=>{
@@ -81,13 +158,17 @@ export default function App(){
      <div className="detail-meta"><p><strong>Pickup</strong><br/>{item.pickup || 'Arrange directly with seller'}</p><p><strong>Seller</strong><br/>{item.seller}</p></div>
      <p className="muted">Status: {item.status}</p>
      {item.owner==='you'
-       ? <button className="sell-cta" onClick={()=>startEdit(item)}>Edit your listing</button>
+       ? account.signedIn
+         ? confirmDelete===item.id
+           ? <div className="delete-confirm" role="alertdialog" aria-label="Confirm delete"><p><strong>Delete this listing?</strong><br/>This removes it from the marketplace and can't be undone.</p><div className="detail-actions"><button className="ghost-button" autoFocus onClick={()=>setConfirmDelete(null)}>Cancel</button><button className="danger-button" onClick={()=>deleteItem(item.id)}>Yes, delete</button></div></div>
+           : <div className="detail-actions"><button className="sell-cta" onClick={()=>startEdit(item)}>Edit your listing</button><button className="danger-button" onClick={()=>setConfirmDelete(item.id)}>Delete listing</button></div>
+         : <button className="sell-cta" onClick={()=>startEdit(item)}>Sign in to edit</button>
        : item.status==='sold'
          ? <p className="fineprint">This item is marked as sold.</p>
          : <a className="sell-cta contact-seller" href={`mailto:${item.sellerEmail}?subject=${subject}&body=${body}`}>✉ Contact seller</a>}
     </section>
    </div>;
   })()}
-  {editor&&<div className="overlay" onMouseDown={e=>e.target===e.currentTarget&&setEditor(null)}><section className="sell-modal" role="dialog" aria-modal="true" aria-label={editor.id?'Edit item':'Sell item'}><div className="modal-head"><div><p className="section-kicker">CAMPUS EXCHANGE</p><h2>{editor.id?'Edit your listing':'Sell an item'}</h2><p>Add the details and we'll take care of the rest.</p></div><button className="close" onClick={()=>setEditor(null)}>×</button></div><form onSubmit={submit}><div className="field-grid"><label><span>Item title *</span><input value={editor.form.title} onChange={e=>setEditor(s=>({...s,form:{...s.form,title:e.target.value}}))} placeholder="What are you selling?"/></label><label><span>Price (EGP) *</span><input type="number" min="0" step="0.01" value={editor.form.price} onChange={e=>setEditor(s=>({...s,form:{...s.form,price:e.target.value}}))} placeholder="Price"/></label><label><span>Category *</span><select value={editor.form.category} onChange={e=>setEditor(s=>({...s,form:{...s.form,category:e.target.value}}))}><option value="">Select</option>{categories.slice(1).map(c=><option value={c} key={c}>{cap(c)}</option>)}</select></label><label><span>Condition *</span><select value={editor.form.condition} onChange={e=>setEditor(s=>({...s,form:{...s.form,condition:e.target.value}}))}><option value="">Select</option>{conditions.map(c=><option value={c} key={c}>{cap(c)}</option>)}</select></label><label className="wide"><span>Description</span><textarea value={editor.form.description} onChange={e=>setEditor(s=>({...s,form:{...s.form,description:e.target.value}}))} placeholder="Description" rows="5"/></label><label className="wide"><span>Pickup / meetup location</span><input value={editor.form.pickup} onChange={e=>setEditor(s=>({...s,form:{...s.form,pickup:e.target.value}}))} placeholder="e.g. Library entrance or arrange on campus" /></label><label className="wide"><span>Seller contact email</span><input value={currentUser.email} readOnly aria-readonly="true" className="readonly-input"/><small className="email-helper">Taken from your registered account, so buyers can contact you about this item.</small></label>{editor.id&&<label><span>Status</span><select value={editor.form.status} onChange={e=>setEditor(s=>({...s,form:{...s.form,status:e.target.value}}))}><option value="active">Active</option><option value="sold">Sold</option></select></label>}</div>{error&&<p className="alert" role="alert">{error}</p>}<div className="modal-foot"><button type="button" onClick={()=>setEditor(null)}>Cancel</button><button className="sell-cta" type="submit">{editor.id?'Save changes':'Publish item'}</button></div></form></section></div>}
+  {editor&&<div className="overlay" onMouseDown={e=>e.target===e.currentTarget&&setEditor(null)}><section className="sell-modal" role="dialog" aria-modal="true" aria-label={editor.id?'Edit item':'Sell item'}><div className="modal-head"><div><p className="section-kicker">CAMPUS EXCHANGE</p><h2>{editor.id?'Edit your listing':'Sell an item'}</h2><p>Add the details and we'll take care of the rest.</p></div><button className="close" onClick={()=>setEditor(null)}>×</button></div><form onSubmit={submit}><div className="field-grid"><label><span>Item title *</span><input value={editor.form.title} onChange={e=>setEditor(s=>({...s,form:{...s.form,title:e.target.value}}))} placeholder="What are you selling?"/></label><label><span>Price (EGP) *</span><input type="number" min="0" step="0.01" value={editor.form.price} onChange={e=>setEditor(s=>({...s,form:{...s.form,price:e.target.value}}))} placeholder="Price"/></label><label><span>Category *</span><select value={editor.form.category} onChange={e=>setEditor(s=>({...s,form:{...s.form,category:e.target.value}}))}><option value="">Select</option>{categories.slice(1).map(c=><option value={c} key={c}>{cap(c)}</option>)}</select></label><label><span>Condition *</span><select value={editor.form.condition} onChange={e=>setEditor(s=>({...s,form:{...s.form,condition:e.target.value}}))}><option value="">Select</option>{conditions.map(c=><option value={c} key={c}>{cap(c)}</option>)}</select></label><label className="wide"><span>Description</span><textarea value={editor.form.description} onChange={e=>setEditor(s=>({...s,form:{...s.form,description:e.target.value}}))} placeholder="Description" rows="5"/></label><label className="wide"><span>Pickup / meetup location</span><input value={editor.form.pickup} onChange={e=>setEditor(s=>({...s,form:{...s.form,pickup:e.target.value}}))} placeholder="e.g. Library entrance or arrange on campus" /></label><label className="wide"><span>Seller contact email</span><input value={account.email} readOnly aria-readonly="true" className="readonly-input"/><small className="email-helper">Taken from your registered account, so buyers can contact you about this item.</small></label>{editor.id&&<label><span>Status</span><select value={editor.form.status} onChange={e=>setEditor(s=>({...s,form:{...s.form,status:e.target.value}}))}><option value="active">Active</option><option value="sold">Sold</option></select></label>}</div>{error&&<p className="alert" role="alert">{error}</p>}<div className="modal-foot"><button type="button" onClick={()=>setEditor(null)}>Cancel</button><button className="sell-cta" type="submit">{editor.id?'Save changes':'Publish item'}</button></div></form></section></div>}
  </div>;
 }

@@ -20,3 +20,53 @@
 .field-grid .readonly-input{background:#f6f4f8;color:#696278;cursor:default}
 .field-grid .email-helper{font-size:11px;color:#978fa2;font-weight:400;line-height:1.4}
 @media(max-width:600px){.detail-panel{padding:22px}.detail-meta{grid-template-columns:1fr}.detail-meta p{margin:6px 0}}
+
+/* Account button and account page */
+button.usercircle{background:#fff;color:#29213b;padding:0;transition:border-color .15s,background .15s,color .15s}
+button.usercircle:hover,button.usercircle:focus-visible,button.usercircle.on{border-color:#7956c3;background:#f0e9fc;color:#5b3fa3}
+.signin-link{border:1px solid #e5dfee;background:#fff;color:#463261;border-radius:10px;padding:11px 15px;font-size:12px;font-weight:600}
+.signin-link:hover{border-color:#7956c3}
+.account-page{max-width:1390px;margin:32px auto 0}
+.account-page>h2{font-family:Outfit;font-size:28px;margin:4px 0}
+.account-sub{margin:5px 0 26px;color:#8b8796;font-size:12px}
+.back-link{border:0;background:none;padding:0;margin-bottom:22px;color:#7956c3;font-size:12px;font-weight:600}
+.back-link:hover{text-decoration:underline}
+.account-layout{display:grid;grid-template-columns:300px 1fr;gap:20px;align-items:start}
+.account-card,.account-panel{background:#fff;border:1px solid #e9e5ec;border-radius:21px;padding:26px;box-shadow:0 7px 20px #44335107}
+.account-card{text-align:center;display:flex;flex-direction:column;align-items:center}
+.account-card h3{font-family:Outfit;font-size:20px;margin:14px 0 4px}
+.account-card p{margin:2px 0;font-size:12px;color:#635d6d;word-break:break-word}
+.avatar-lg{display:grid;place-items:center;width:76px;height:76px;border-radius:50%;background:linear-gradient(140deg,#8e71d9,#7956c3);color:#fff;font:700 30px Outfit}
+.logout-button{width:100%;margin-top:22px;border:1px solid #f0d6d5;background:#fff6f5;color:#b45457;border-radius:10px;padding:12px;font-size:12px;font-weight:700}
+.logout-button:hover{background:#fdeceb}
+.account-main{display:flex;flex-direction:column;gap:20px;min-width:0}
+.account-panel h3{font-family:Outfit;font-size:18px;margin:0}
+.account-hint{color:#968ca4;font-size:12px;margin:6px 0 0}
+.account-panel .field-grid{margin-top:20px}
+.account-panel .alert,.account-panel .notice{margin:18px 0 0}
+.account-panel .modal-foot button:first-child{font-size:12px;font-weight:600;color:#5c546f}
+.account-card.signed-out{max-width:420px;gap:6px}
+.account-card.signed-out p{margin:12px 0 10px;font-size:13px;line-height:1.5}
+.account-card.signed-out .sell-cta{width:100%}
+.account-card.signed-out .back-link{margin:12px 0 0}
+@media(max-width:970px){.account-layout{grid-template-columns:1fr}}
+@media(max-width:600px){.usercircle{display:grid}.account-card,.account-panel{padding:20px}.account-panel .modal-foot{flex-wrap:wrap}}
+.navigation nav button:hover,.navigation nav a:hover{color:#7956c3}
+.navigation nav button.on{color:#7956c3;font-weight:700}
+.my-listings{margin-top:24px}
+/* Filters and delete */
+.filter-bar{display:flex;align-items:center;justify-content:space-between;gap:8px 16px;flex-wrap:wrap}
+.filter-bar .category-row{flex:1 1 auto;min-width:0}
+.filter-selects{display:flex;gap:8px;flex-wrap:wrap}
+.filter-bar .sort{padding:9px 12px}
+.sort select{cursor:pointer}
+.filter-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px}
+.filter-row+.noresults{padding:40px 0}
+.detail-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+.danger-button{border:1px solid #f0d6d5;background:#fff6f5;color:#b45457;border-radius:10px;padding:12px 17px;font-size:12px;font-weight:700}
+.danger-button:hover{background:#fdeceb}
+.ghost-button{border:1px solid #e3dde9;background:#fff;color:#5c546f;border-radius:10px;padding:12px 17px;font-size:12px;font-weight:600}
+.delete-confirm{border:1px solid #f0d6d5;background:#fffaf9;border-radius:14px;padding:14px 16px;margin-top:6px}
+.delete-confirm p{margin:0 0 10px;font-size:12px;color:#7a4a4b;line-height:1.5}
+.delete-confirm strong{color:#b45457}
+@media(max-width:600px){.filter-selects{width:100%;margin-bottom:12px}.filter-row .sort,.filter-selects .sort{flex:1 1 140px}.sort select{min-width:0;width:100%}}
